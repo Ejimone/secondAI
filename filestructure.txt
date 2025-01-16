@@ -1,0 +1,23 @@
+opencodeai/
+├── backend/
+│   ├── main.py       # streamlit and langchain
+│   ├── api/          # API route definitions
+│   │   └── __init__.py
+│   │   └── ai.py    # AI interaction logic
+│   ├── utils/        # Utility functions
+│   │   └── __init__.py
+│   │   └── web.py    # Web scraping functions
+│   └── models.py    # Database models (if needed) 
+├── frontend/
+│   ├── popup.html
+│   ├── popup.js
+│   └── popup.css
+└── chrome-extension/
+    ├── manifest.json
+    ├── popup.html
+    ├── popup.js
+    ├── content.js  # Interacts with webpage
+    └── background.js # Connects popup and content script
+
+
+use streamlit and langchain for the development of the backend

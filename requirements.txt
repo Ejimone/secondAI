@@ -1,0 +1,9 @@
+langchain
+python-dotenv
+langchain-community
+fastapi
+uvicorn
+requests
+openai
+serpapi
+python-dotenv  # For environment variables

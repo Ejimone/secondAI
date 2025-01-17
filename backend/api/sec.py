@@ -12,7 +12,6 @@ import openai
 from langchain_community.utilities import SerpAPIWrapper
 import streamlit as st
 import asyncio
-import requests
 
 
 
@@ -80,29 +79,6 @@ async def real_time_search(query):
 
     else:  # No Gemini, return raw results
         return f"Search Results:\n{results}"
-
-
-async def scrape_webpages_with_serpapi(query):
-    serpapi_api_key = os.getenv("SERPAPI_API_KEY")
-    if not serpapi_api_key:
-        raise Exception("SERPAPI_API_KEY environment variable not set.")
-
-    search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
-    results = search.run(query)
-
-    processed_content = []
-    for item in results.get("organic_results", []):
-        url = item.get("link")
-        if url:
-            try:
-                response = requests.get(url, timeout=10)
-                if response.ok:
-                    # Do any processing or parsing needed here
-                    processed_content.append({"url": url, "text": response.text[:200]})
-            except Exception as e:
-                print(f"Error fetching {url}: {e}")
-
-    return processed_content
 
 
 def create_chain(use_gemini=False):
@@ -201,3 +177,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

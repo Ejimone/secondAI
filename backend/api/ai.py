@@ -10,11 +10,20 @@ from google.generativeai import GenerativeModel
 import google.generativeai as genai
 import openai
 from langchain_community.utilities import SerpAPIWrapper
-import streamlit as st
 import asyncio
 import requests
 import uuid
-import datetime
+from datetime import datetime
+import json
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import pickle
+import base64
+from email.mime.text import MIMEText
+import pytz
+from typing import Dict, Any
 
 
 # Load environment variables
@@ -24,6 +33,40 @@ os.environ["SERPAPI_API_KEY"] = os.getenv("SERPAPI_API_KEY")
 # os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 # gemni api key
 os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
+
+# Get the current directory where ai.py is located
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(CURRENT_DIR))  # Go up two levels to project root
+
+# Add these constants at the top of the file
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.compose',
+    'https://www.googleapis.com/auth/gmail.modify'
+]
+
+def check_credentials():
+    """Check if Gmail credentials are properly set up"""
+    try:
+        if not os.path.exists(CREDENTIALS_PATH):
+            return {
+                "status": "error", 
+                "message": f"credentials.json not found at {CREDENTIALS_PATH}"
+            }
+        
+        service = get_gmail_service()
+        # Test the service by getting user profile
+        profile = service.users().getProfile(userId='me').execute()
+        return {
+            "status": "success", 
+            "email": profile['emailAddress'],
+            "message": "Gmail API configured successfully"
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
+TOKEN_PATH = os.path.join(BASE_DIR, 'token.pickle')
+CREDENTIALS_PATH = os.path.join(BASE_DIR, 'credentials.json')
 
 def initialize_openai():
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -74,72 +117,216 @@ def initialize_gemini():
 # this function will take a query and return the search results in real time using the serpapi
 # this function will will be able to use the serpapi to get the search results in real time and gemini to generate the search results
 # """
-async def real_time_search(query):
-    """
-    Performs a real-time search using SerpAPI and provides detailed results with context and summary.
-    """
-    serpapi_api_key = os.getenv("SERPAPI_API_KEY")
-    if not serpapi_api_key:
-        raise Exception("SERPAPI_API_KEY environment variable not set.")
-
+async def get_current_time(location: str) -> Dict[str, Any]:
+    """Get current time for a specific location"""
     try:
-        # Perform the search
-        search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
-        raw_results = search.run(query)
+        # Dictionary of common US timezone mappings
+        us_timezones = {
+            'eastern': 'US/Eastern',
+            'central': 'US/Central',
+            'mountain': 'US/Mountain',
+            'pacific': 'US/Pacific',
+            'alaska': 'US/Alaska',
+            'hawaii': 'US/Hawaii'
+        }
         
-        # Convert to dictionary if results are in list format
-        if isinstance(raw_results, list):
-            results = {"organic_results": raw_results}
+        # Default to showing all major US timezones if specific zone not specified
+        if location.lower() == 'us' or location.lower() == 'usa':
+            current_times = []
+            for zone_name, timezone in us_timezones.items():
+                tz = pytz.timezone(timezone)
+                current_time = datetime.now(tz)
+                current_times.append(f"🕐 {zone_name.title()}: {current_time.strftime('%I:%M %p')}")
+            
+            return {
+                "status": "success",
+                "data": "\n".join(current_times),
+                "type": "time"
+            }
         else:
-            results = raw_results
+            # Try to find the specific timezone
+            try:
+                tz = pytz.timezone(location)
+                current_time = datetime.now(tz)
+                return {
+                    "status": "success",
+                    "data": f"🕐 Current time in {location}: {current_time.strftime('%I:%M %p')}",
+                    "type": "time"
+                }
+            except pytz.exceptions.UnknownTimeZoneError:
+                return {
+                    "status": "error",
+                    "message": f"Could not find timezone for {location}"
+                }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
-        # Initialize Gemini for summarization
+async def get_weather(location: str) -> Dict[str, Any]:
+    """Get current weather for a location"""
+    try:
+        # Using OpenWeatherMap API
+        api_key = os.getenv("OPENWEATHER_API_KEY")
+        if not api_key:
+            return {
+                "status": "success",
+                "data": "⚠️ Weather information is temporarily unavailable (API key not configured)",
+                "type": "weather"
+            }
+        
+        # Make the API request
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={api_key}&units=metric"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            # Get current time in user's timezone
+            current_time = datetime.now().strftime('%I:%M %p')
+            
+            weather_info = f"""
+🌍 Current Weather in {data['name']}, {data.get('sys', {}).get('country', '')}:
+
+🌡️ Temperature: {data['main']['temp']}°C
+🌡️ Feels like: {data['main']['feels_like']}°C
+💧 Humidity: {data['main']['humidity']}%
+🌪️ Wind: {data['wind']['speed']} m/s
+☁️ Conditions: {data['weather'][0]['description'].capitalize()}
+
+Updated at: {current_time}
+            """
+            return {
+                "status": "success",
+                "data": weather_info.strip(),
+                "type": "weather"
+            }
+        elif response.status_code == 401:
+            return {
+                "status": "success",
+                "data": "⚠️ Weather API key is invalid. Please check your configuration.",
+                "type": "weather"
+            }
+        elif response.status_code == 404:
+            return {
+                "status": "success",
+                "data": f"📍 Could not find weather data for '{location}'. Please check the location name.",
+                "type": "weather"
+            }
+        else:
+            return {
+                "status": "success",
+                "data": f"⚠️ Weather service returned status code: {response.status_code}",
+                "type": "weather"
+            }
+            
+    except requests.Timeout:
+        return {
+            "status": "success",
+            "data": "⚠️ Weather service is taking too long to respond. Please try again.",
+            "type": "weather"
+        }
+    except requests.RequestException as e:
+        return {
+            "status": "success",
+            "data": f"⚠️ Error fetching weather data: {str(e)}",
+            "type": "weather"
+        }
+    except Exception as e:
+        return {
+            "status": "success",
+            "data": f"⚠️ Unexpected error: {str(e)}",
+            "type": "weather"
+        }
+
+async def real_time_search(user_prompt: str) -> Dict[str, Any]:
+    """Handle real-time information requests"""
+    try:
         gemini_model = initialize_gemini()
         if not gemini_model:
-            return "Error: Could not initialize Gemini model for summarization."
-
-        # Extract and format the search results
-        formatted_results = "Search Results for: " + query + "\n\n"
+            return {"status": "error", "message": "Could not initialize Gemini model"}
         
-        # Process organic results
-        if "organic_results" in results:
-            for idx, result in enumerate(results["organic_results"][:5], 1):
-                formatted_results += f"{idx}. Title: {result.get('title', 'No title')}\n"
-                formatted_results += f"   Link: {result.get('link', 'No link')}\n"
-                formatted_results += f"   Snippet: {result.get('snippet', 'No snippet available')}\n\n"
-
-        # Generate context and summary using Gemini
-        summary_prompt = f"""
-        Based on the following search results, provide:
-        1. A comprehensive summary
-        2. Key points or facts
-        3. Additional context if relevant
-
-        Search Query: {query}
-        Results: {formatted_results}
+        # Analyze the type of real-time information needed
+        analysis_prompt = f"""
+        You are a request classifier. Analyze this request and return a JSON response.
+        Request: "{user_prompt}"
+        
+        Rules:
+        1. For weather requests, extract the city/location name
+        2. For time requests, extract the location/timezone
+        3. Always return a valid JSON object
+        4. Default to "unknown" if location cannot be determined
+        
+        Return EXACTLY in this format:
+        {{
+            "type": "weather",
+            "location": "london",
+            "query_type": "current_weather"
+        }}
+        
+        Example valid responses:
+        For "what's the weather in london":
+        {{"type": "weather", "location": "london", "query_type": "current_weather"}}
+        
+        For "time in new york":
+        {{"type": "time", "location": "US/Eastern", "query_type": "current_time"}}
         """
-
+        
+        response = gemini_model.generate_content(analysis_prompt)
+        response_text = response.text.strip()
+        
+        # Debug logging
+        print(f"Gemini Response: {response_text}")
+        
         try:
-            summary = gemini_model.generate_content(summary_prompt).text
+            request_info = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            print(f"JSON parsing error: {str(e)}")
+            print(f"Raw response: {response_text}")
+            return {
+                "status": "success",
+                "request_type": "REAL_TIME_INFO",
+                "search_result": "⚠️ I had trouble understanding that request. Please try rephrasing it."
+            }
+        
+        # Ensure required fields exist
+        if not all(key in request_info for key in ["type", "location"]):
+            return {
+                "status": "success",
+                "request_type": "REAL_TIME_INFO",
+                "search_result": "⚠️ Could not determine the type of information needed. Please try rephrasing your request."
+            }
+        
+        # Route to appropriate handler based on request type
+        if request_info["type"] == "time":
+            result = await get_current_time(request_info["location"])
+        elif request_info["type"] == "weather":
+            result = await get_weather(request_info["location"])
+        else:
+            return {
+                "status": "success",
+                "request_type": "REAL_TIME_INFO",
+                "search_result": "I can currently only provide time and weather information. Other real-time data types are coming soon!"
+            }
+        
+        if result["status"] == "success":
+            return {
+                "status": "success",
+                "request_type": "REAL_TIME_INFO",
+                "data_type": result["type"],
+                "search_result": result["data"]
+            }
+        else:
+            return {
+                "status": "success",
+                "request_type": "REAL_TIME_INFO",
+                "search_result": f"⚠️ {result['message']}"
+            }
             
-            # Combine everything into a structured response
-            final_response = f"""
-=== Search Query ===
-{query}
-
-=== Detailed Results ===
-{formatted_results}
-
-=== Analysis and Summary ===
-{summary}
-"""
-            return final_response
-
-        except Exception as e:
-            return f"Error generating summary: {str(e)}\n\nRaw Results:\n{formatted_results}"
-
     except Exception as e:
-        return f"Error in search process: {str(e)}"
+        print(f"Error in real_time_search: {str(e)}")  # Debug logging
+        return {
+            "status": "success",
+            "request_type": "REAL_TIME_INFO",
+            "search_result": f"⚠️ Error processing request: {str(e)}"
+        }
 
 
 async def scrape_webpages_with_serpapi(query):
@@ -324,15 +511,13 @@ def create_chain(use_gemini=False):
 
 
 def main():
-    # Set environment variables
-    os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-    os.environ["SERPAPI_API_KEY"] = os.getenv("SERPAPI_API_KEY")
-    
+    """
+    Main function for backend initialization and testing
+    """
     try:
-        # Try to initialize with OpenAI first
+        # Initialize OpenAI
         llm, is_openai_working = initialize_openai()
         if is_openai_working:
-            # Initialize OpenAI tools and agent
             tools = load_tools(["serpapi", "llm-math"], llm=llm)
             agent = initialize_agent(
                 tools,
@@ -344,48 +529,27 @@ def main():
         else:
             # Fallback to Gemini
             chain = create_chain(use_gemini=True)
-            
         
-        # Run the chain
-        # name = chain.run("Nigerian")
-        # # print("Generated restaurant name:", name)
-        # # print("\nMemory buffer:", chain.memory.buffer)
-        
-        # Additional conversation handling
-        if llm is not None:
-            convo = ConversationChain(llm=llm)
-            # print("\nConversation prompt:", convo.prompt.template)
-            # print("\nCapital of Nigeria:", convo.run("What is the capital of Nigeria?"))
-            # print("\nConversation memory:", convo.memory)
-
-
-        # Run the search and display the results
-            st.title("Real-Time Search App")
-
-            query = st.text_input("Enter your search query:")
-            if st.button("Search"):
-                if query:  # Check if the user entered a query
-                    asyncio.run(run_search_and_display(query)) # Run the search
-                else:
-                    st.warning("Please enter a search query.")
+        return {
+            "status": "success",
+            "message": "Backend initialized successfully",
+            "openai_status": is_openai_working,
+            "chain": chain
+        }
         
     except Exception as e:
-        print(f"An error occurred: {e}")
-
-async def run_search_and_display(query):
-    results = await real_time_search(query)
-    st.write(results)
+        return {
+            "status": "error",
+            "message": f"Backend initialization failed: {str(e)}"
+        }
 
 async def create_task(task_type, task_details, due_date=None, priority="medium"):
-    """
-    Creates and manages various types of tasks using Gemini AI.
-    """
+    """Create a task with the specified details"""
     try:
         gemini_model = initialize_gemini()
         if not gemini_model:
             return {"status": "error", "message": "Could not initialize Gemini model"}
 
-        # Base task metadata
         task = {
             "task_id": str(uuid.uuid4()),
             "type": task_type,
@@ -395,78 +559,36 @@ async def create_task(task_type, task_details, due_date=None, priority="medium")
             "status": "created"
         }
 
-        # Task-specific processing
         if task_type.lower() == "email":
             email_prompt = f"""
-            Generate a professional email based on the following details:
+            Generate a professional email based on these details:
             To: {task_details.get('to')}
-            Subject: {task_details.get('subject')}
+            Subject: {task_details.get('subject', 'Meeting Discussion')}
             Content Brief: {task_details.get('content')}
             Priority: {priority}
 
-            Please provide a professional email with:
-            1. A refined subject line
-            2. Professional greeting
-            3. Main body content (well-structured paragraphs)
-            4. Professional closing
-            5. Follow-up recommendations
+            Requirements:
+            1. Professional and courteous tone
+            2. Clear and concise language
+            3. Start with a professional greeting
+            4. Include all relevant details from the content brief
+            5. End with a professional closing (but no signature)
+            6. Format with proper paragraphs and spacing
+            
+            Do not include a signature block - it will be added separately.
             """
             
             response = gemini_model.generate_content(email_prompt)
             
             task["email_content"] = {
                 "to": task_details.get('to'),
-                "subject": task_details.get('subject'),
-                "generated_content": response.text
-            }
-
-        elif task_type.lower() in ["reminder", "alarm"]:
-            reminder_prompt = f"""
-            Create a structured reminder plan for:
-            Task: {task_details.get('content')}
-            Due Date: {due_date}
-            Priority: {priority}
-
-            Please provide:
-            1. Detailed reminder schedule
-            2. Key checkpoints
-            3. Action items
-            4. Progress tracking steps
-            """
-            
-            response = gemini_model.generate_content(reminder_prompt)
-            
-            task["reminder_details"] = {
-                "content": task_details.get('content'),
-                "generated_plan": response.text
-            }
-
-        elif task_type.lower() == "todo":
-            todo_prompt = f"""
-            Create a detailed todo list for:
-            Task: {task_details.get('content')}
-            Due Date: {due_date}
-            Priority: {priority}
-
-            Please provide:
-            1. Main task breakdown
-            2. Subtasks with priorities
-            3. Timeline recommendations
-            4. Resource requirements
-            5. Success metrics
-            """
-            
-            response = gemini_model.generate_content(todo_prompt)
-            
-            task["todo_details"] = {
-                "content": task_details.get('content'),
-                "generated_plan": response.text
+                "subject": task_details.get('subject', 'Meeting Discussion'),
+                "generated_content": response.text.strip()
             }
 
         return {
             "status": "success",
-            "task": task,
-            "message": "Task created successfully"
+            "task": task
         }
 
     except Exception as e:
@@ -498,6 +620,140 @@ async def handle_task_creation(task_request):
             "status": "error",
             "message": f"Error in task creation: {str(e)}"
         }
+
+def get_gmail_service():
+    """Initialize Gmail API service"""
+    try:
+        creds = None
+        if os.path.exists(TOKEN_PATH):
+            with open(TOKEN_PATH, 'rb') as token:
+                creds = pickle.load(token)
+        
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    CREDENTIALS_PATH, 
+                    SCOPES
+                )
+                # Simplified flow without extra parameters
+                creds = flow.run_local_server(port=0)
+            with open(TOKEN_PATH, 'wb') as token:
+                pickle.dump(creds, token)
+        
+        return build('gmail', 'v1', credentials=creds)
+    except Exception as e:
+        print(f"Error in get_gmail_service: {str(e)}")
+        raise
+
+async def send_email(to: str, subject: str, body: str):
+    """Send email using Gmail API"""
+    try:
+        print(f"Attempting to send email to: {to}")  # Debug log
+        service = get_gmail_service()
+        
+        # Create the email message
+        message = MIMEText(body)
+        message['to'] = to
+        message['subject'] = subject
+        
+        # Get user's email address for the 'from' field
+        user_profile = service.users().getProfile(userId='me').execute()
+        message['from'] = user_profile['emailAddress']
+        
+        # Encode the message for Gmail API
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        
+        print("Sending email via Gmail API...")  # Debug log
+        # Send the email
+        sent_message = service.users().messages().send(
+            userId='me',
+            body={'raw': raw_message}
+        ).execute()
+        
+        print(f"Email sent successfully. Message ID: {sent_message['id']}")  # Debug log
+        
+        return {
+            "status": "success",
+            "message_id": sent_message['id'],
+            "message": "Email sent successfully",
+            "details": {
+                "to": to,
+                "subject": subject,
+                "from": user_profile['emailAddress']
+            }
+        }
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")  # Debug log
+        return {
+            "status": "error",
+            "message": f"Failed to send email: {str(e)}",
+            "details": {
+                "to": to,
+                "subject": subject,
+                "error_type": type(e).__name__
+            }
+        }
+
+async def analyze_prompt_and_route_task(user_prompt: str):
+    """Analyzes user prompt and routes to appropriate function"""
+    try:
+        gemini_model = initialize_gemini()
+        if not gemini_model:
+            return {"status": "error", "message": "Could not initialize Gemini model"}
+
+        # First, determine if this is a real-time information request
+        classification_prompt = f"""
+        Classify this request. Return EXACTLY in this format without any additional text:
+        {{
+            "type": "REAL_TIME_INFO",
+            "category": "weather"
+        }}
+        
+        OR
+        
+        {{
+            "type": "TASK_CREATION",
+            "category": "email"
+        }}
+        
+        Request: "{user_prompt}"
+        """
+        
+        response = gemini_model.generate_content(classification_prompt)
+        response_text = response.text.strip()
+        
+        try:
+            classification = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            print(f"JSON parsing error: {str(e)}")
+            print(f"Raw response: {response_text}")
+            return {
+                "status": "error",
+                "message": "Failed to understand the request. Please try rephrasing."
+            }
+        
+        if classification.get("type") == "REAL_TIME_INFO":
+            return await real_time_search(user_prompt)
+        elif classification.get("type") == "TASK_CREATION":
+            # ... rest of your existing task creation code ...
+            pass
+        else:
+            return {
+                "status": "error",
+                "message": "Unsupported request type. Please try a different request."
+            }
+            
+    except Exception as e:
+        print(f"Error in analyze_prompt_and_route_task: {str(e)}")  # Debug logging
+        return {
+            "status": "error",
+            "message": f"Error processing prompt: {str(e)}"
+        }
+
+# Add this to the top of ai.py for debugging
+
 
 if __name__ == "__main__":
     main()

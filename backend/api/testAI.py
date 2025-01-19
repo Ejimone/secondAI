@@ -1,7 +1,15 @@
 import os
 import asyncio
 import logging
-from ai import initialize_openai, initialize_gemini, real_time_search, scrape_webpages_with_serpapi, handle_task_creation
+from ai import (
+    initialize_openai, 
+    initialize_gemini, 
+    real_time_search, 
+    scrape_webpages_with_serpapi, 
+    handle_task_creation, 
+    analyze_prompt_and_route_task,
+    create_task
+)
 import uuid
 import datetime
 
@@ -9,156 +17,182 @@ import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set environment variables for testing
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-os.environ["SERPAPI_API_KEY"] = os.getenv("SERPAPI_API_KEY")
-os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
-
 async def test_initialize_openai():
+    """Test OpenAI initialization"""
     try:
         llm, is_working = initialize_openai()
         logger.info(f"OpenAI Initialization Successful: {is_working}")
         if is_working:
             logger.info(f"LLM Object: {llm}")
+        return is_working
     except Exception as e:
         logger.error(f"Error in OpenAI initialization: {e}")
+        return False
 
 async def test_initialize_gemini():
+    """Test Gemini initialization"""
     try:
         model = initialize_gemini()
         logger.info(f"Gemini Initialization Successful: {model is not None}")
-        return model
+        return model is not None
     except Exception as e:
         logger.error(f"Error in Gemini initialization: {e}")
-        return None
-
-async def test_real_time_search(query):
-    try:
-        logger.info(f"Performing search for query: {query}")
-        results = await real_time_search(query)
-        
-        # Add separators for better readability in logs
-        logger.info("\n" + "="*50)
-        logger.info("Search Results and Analysis:")
-        logger.info("="*50)
-        logger.info("\n%s", results)
-        logger.info("="*50 + "\n")
-        
-    except Exception as e:
-        logger.error(f"Error in real-time search: {e}")
-
-async def test_scrape_webpages_with_serpapi(query):
-    try:
-        logger.info(f"\nInitiating comprehensive analysis for query: {query}")
-        logger.info("="*50)
-        
-        results = await scrape_webpages_with_serpapi(query)
-        
-        # Format and display results with clear sections
-        logger.info("\n" + "="*50)
-        logger.info("COMPREHENSIVE ANALYSIS RESULTS")
-        logger.info("="*50)
-        logger.info("\n%s", results)
-        logger.info("\n" + "="*50)
-        
-        return results
-    except Exception as e:
-        logger.error(f"Error in comprehensive analysis: {e}")
-        return None
+        return False
 
 async def test_task_creation():
-    """
-    Test function for task creation functionality
-    """
-    try:
-        test_tasks = [
-            {
-                "task_type": "email",
-                "task_details": {
-                    "to": "john@example.com",
-                    "subject": "Quarterly Project Review Meeting",
-                    "content": "Need to schedule a comprehensive review of Q1 projects, discuss milestones, and plan for Q2."
-                },
-                "due_date": "2024-03-20T14:00:00",
-                "priority": "high"
+    """Test task creation functionality"""
+    test_tasks = [
+        {
+            "task_type": "email",
+            "task_details": {
+                "to": "john@example.com",
+                "subject": "Quarterly Project Review Meeting",
+                "content": "Need to schedule a comprehensive review of Q1 projects."
             },
-            {
-                "task_type": "reminder",
-                "task_details": {
-                    "content": "Prepare presentation slides for client meeting"
-                },
-                "due_date": "2024-03-21T10:00:00",
-                "priority": "medium"
+            "due_date": "2024-03-20T14:00:00",
+            "priority": "high"
+        },
+        {
+            "task_type": "reminder",
+            "task_details": {
+                "content": "Prepare presentation slides"
             },
-            {
-                "task_type": "todo",
-                "task_details": {
-                    "content": "Website redesign project"
-                },
-                "due_date": "2024-04-01T17:00:00",
-                "priority": "high"
-            }
-        ]
+            "due_date": "2024-03-21T10:00:00",
+            "priority": "medium"
+        },
+        {
+            "task_type": "todo",
+            "task_details": {
+                "content": "Website redesign project"
+            },
+            "due_date": "2024-04-01T17:00:00",
+            "priority": "high"
+        }
+    ]
 
-        for task in test_tasks:
-            logger.info(f"\nTesting task creation for: {task['task_type']}")
-            logger.info("="*50)
+    for task in test_tasks:
+        logger.info(f"\n{'='*50}")
+        logger.info(f"Testing Task Creation: {task['task_type'].upper()}")
+        logger.info(f"{'='*50}")
+        
+        response = await handle_task_creation(task)
+        
+        if response["status"] == "success":
+            task_data = response["task"]
             
-            response = await handle_task_creation(task)
+            # Print common task information
+            logger.info("\n📋 TASK DETAILS")
+            logger.info(f"Task ID: {task_data['task_id']}")
+            logger.info(f"Type: {task_data['type']}")
+            logger.info(f"Priority: {task_data['priority'].upper()}")
+            logger.info(f"Due Date: {task_data['due_date']}")
+            logger.info(f"Status: {task_data['status'].upper()}")
             
-            if response["status"] == "success":
-                task_data = response["task"]
+            # Print task-specific information
+            if task_data['type'] == 'email':
+                logger.info("\n📧 EMAIL CONTENT")
+                logger.info(f"To: {task_data['email_content']['to']}")
+                logger.info(f"Subject: {task_data['email_content']['subject']}")
+                logger.info("\nGenerated Email:")
+                logger.info(f"{task_data['email_content']['generated_content']}")
                 
-                logger.info(f"Task ID: {task_data['task_id']}")
-                logger.info(f"Type: {task_data['type']}")
-                logger.info(f"Priority: {task_data['priority']}")
-                logger.info(f"Due Date: {task_data['due_date']}")
+            elif task_data['type'] == 'reminder':
+                logger.info("\n⏰ REMINDER DETAILS")
+                logger.info(f"Content: {task_data['reminder_details']['content']}")
+                logger.info("\nGenerated Plan:")
+                logger.info(f"{task_data['reminder_details']['generated_plan']}")
                 
-                if "email_content" in task_data:
-                    logger.info("\nEmail Content:")
-                    logger.info(f"To: {task_data['email_content']['to']}")
-                    logger.info(f"Subject: {task_data['email_content']['subject']}")
-                    logger.info("\nGenerated Content:")
-                    logger.info(task_data['email_content']['generated_content'])
+            elif task_data['type'] == 'todo':
+                logger.info("\n📝 TODO DETAILS")
+                logger.info(f"Task: {task_data['todo_details']['content']}")
+                logger.info("\nGenerated Plan:")
                 
-                elif "reminder_details" in task_data:
-                    logger.info("\nReminder Details:")
-                    logger.info(task_data['reminder_details']['generated_plan'])
-                
-                elif "todo_details" in task_data:
-                    logger.info("\nTodo Details:")
-                    logger.info(task_data['todo_details']['generated_plan'])
-            else:
-                logger.error(f"Task creation failed: {response['message']}")
+                # Format the generated plan for better readability
+                plan = task_data['todo_details']['generated_plan']
+                for line in plan.split('\n'):
+                    if line.startswith('##'):  # Main sections
+                        logger.info(f"\n{line.strip('#').strip()}")
+                    elif line.startswith('**'):  # Sub-sections
+                        logger.info(f"\n{line.strip('*')}")
+                    elif line.startswith('-'):  # List items
+                        logger.info(f"  {line}")
+                    else:
+                        logger.info(line)
             
-            logger.info("="*50)
+            logger.info(f"\n{'='*50}\n")
+        else:
+            logger.error(f"Task creation failed: {response['message']}")
+            logger.info(f"{'='*50}\n")
 
-    except Exception as e:
-        logger.error(f"Error in test_task_creation: {str(e)}")
+async def test_prompt_analysis():
+    """Test prompt analysis and routing"""
+    test_prompts = [
+        "Send an email to john@example.com about the project meeting tomorrow",
+        "Remind me to prepare presentation slides by next Tuesday",
+        "Create a todo list for the website redesign project",
+    ]
+
+    for prompt in test_prompts:
+        logger.info(f"\n{'='*50}")
+        logger.info(f"Testing Prompt: {prompt}")
+        logger.info(f"{'='*50}")
+        
+        response = await analyze_prompt_and_route_task(prompt)
+        
+        if response["status"] == "success":
+            logger.info("\n🎯 PROMPT ANALYSIS")
+            logger.info(f"Original Prompt: {response['original_prompt']}")
+            
+            interpreted = response['interpreted_task']
+            logger.info("\n📋 INTERPRETED TASK")
+            logger.info(f"Task Type: {interpreted['task_type'].upper()}")
+            logger.info(f"Priority: {interpreted['priority'].upper()}")
+            if 'due_date' in interpreted:
+                logger.info(f"Due Date: {interpreted['due_date']}")
+            
+            logger.info("\n📝 TASK DETAILS")
+            for key, value in interpreted['task_details'].items():
+                logger.info(f"{key.capitalize()}: {value}")
+                
+        else:
+            logger.error(f"Prompt analysis failed: {response['message']}")
+        
+        logger.info(f"\n{'='*50}")
+
+async def test_search_functionality():
+    """Test search functionality"""
+    test_queries = [
+        "Latest developments in AI",
+        "Best practices in software testing"
+    ]
+
+    for query in test_queries:
+        logger.info(f"\nTesting search for: {query}")
+        results = await real_time_search(query)
+        logger.info(f"Search Results: {results}")
+        logger.info("="*50)
+        await asyncio.sleep(2)  # Rate limiting
 
 async def main():
+    """Main test execution function"""
     try:
-        # Initialize APIs
+        # Test API initializations
+        logger.info("\n=== Testing API Initializations ===")
         await test_initialize_openai()
         await test_initialize_gemini()
-        
-        # Test task creation
-        logger.info("\nTesting Task Creation Functionality")
+
+        # Test core functionalities
+        logger.info("\n=== Testing Task Creation ===")
         await test_task_creation()
-        
-        # Test search functionality if needed
-        test_queries = [
-            "Latest developments in quantum computing",
-            "Impact of artificial intelligence on healthcare"
-        ]
-        
-        for query in test_queries:
-            logger.info(f"\nTesting search for: {query}")
-            await test_scrape_webpages_with_serpapi(query)
-            await asyncio.sleep(2)  # Add delay between queries
+
+        logger.info("\n=== Testing Prompt Analysis ===")
+        await test_prompt_analysis()
+
+        logger.info("\n=== Testing Search Functionality ===")
+        await test_search_functionality()
 
     except Exception as e:
-        logger.error(f"Error in main execution: {str(e)}")
+        logger.error(f"Error in test execution: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

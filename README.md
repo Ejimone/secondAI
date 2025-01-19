@@ -161,7 +161,7 @@ A persistent, lightweight window that can be opened/closed by the user.
 
 - **Input Type Check:**
   - **Text:** Sent directly to the AI Engine.
-  - **Voice:** Transcribed via AssemblyAI and forwarded to the AI Engine.
+  - **Voice:** Transcribed via AssemblyAI and or google-speech-to-text forwarded to the AI Engine.
 - **Command Classification:**
   - Chat-based queries: Use OpenAI/Gemini.
   - Real-time data: Use SerpAPI.

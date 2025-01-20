@@ -18,15 +18,6 @@ st.markdown("""
 st.title("🤖 OpenCodeHq.Agent")
 st.markdown("---")
 
-# Initialize session state for email details
-if 'email_details' not in st.session_state:
-    st.session_state.email_details = {
-        'to': '',
-        'subject': '',
-        'body': '',
-        'sender_name': 'Your name here'
-    }
-
 # Sidebar with task type examples
 with st.sidebar:
     st.header(" 🇳🇬 Example Prompts")
@@ -34,7 +25,7 @@ with st.sidebar:
     st.subheader("Task Creation")
     st.markdown("""
         **Email Tasks:**
-        - Send an email to john@example.com about the project meeting tomorrow
+        - Send an email to kejimone@gmail.com about the project meeting tomorrow
         
         **Reminders:**
         - Remind me to prepare presentation slides by next Tuesday
@@ -58,13 +49,23 @@ with st.sidebar:
     - Explain quantum computing
     """)
 
-    # Add Gmail setup check button
-    if st.button("Check Gmail Setup"):
+# Add this near the top of your app
+if st.sidebar.button("Check Gmail Setup"):
+    with st.sidebar:
         check_result = check_credentials()
         if check_result["status"] == "success":
             st.success(f"✅ Gmail configured for: {check_result['email']}")
         else:
             st.error(f"❌ Gmail setup error: {check_result['message']}")
+
+# Initialize session state for email details
+if 'email_details' not in st.session_state:
+    st.session_state.email_details = {
+        'to': '',
+        'subject': '',
+        'body': '',
+        'sender_name': 'Your name here'
+    }
 
 # Main interface
 user_input = st.text_area(
@@ -104,7 +105,7 @@ if submit_button:
                                         'body': email_content['generated_content']
                                     })
                                 
-                                # Email form
+                                # Replace the email editing section with this:
                                 with st.form(key='email_form'):
                                     col1, col2 = st.columns(2)
                                     with col1:
@@ -117,35 +118,38 @@ if submit_button:
                                             value=st.session_state.email_details['subject']
                                         )
                                     
+                                    # Add sender name field
                                     sender_name = st.text_input(
                                         "Your Name:", 
                                         value=st.session_state.email_details['sender_name']
                                     )
                                     
+                                    # Editable email body
                                     email_body = st.text_area(
                                         "Email Body:", 
                                         value=st.session_state.email_details['body'],
                                         height=300
                                     )
 
+                                    # Form submit button
                                     submit_form = st.form_submit_button("📤 Send Email", type="primary")
 
                                     if submit_form:
-                                        try:
-                                            # Update session state
-                                            st.session_state.email_details.update({
-                                                'to': email_to,
-                                                'subject': email_subject,
-                                                'sender_name': sender_name,
-                                                'body': email_body
-                                            })
+                                        # Update session state
+                                        st.session_state.email_details.update({
+                                            'to': email_to,
+                                            'subject': email_subject,
+                                            'sender_name': sender_name,
+                                            'body': email_body
+                                        })
 
-                                            # Add signature
-                                            if sender_name and sender_name != "Your name here":
-                                                email_body = email_body.rstrip() + f"\n\nBest regards,\n{sender_name}"
+                                        # Add signature
+                                        if sender_name and sender_name != "Your name here":
+                                            email_body = email_body.rstrip() + f"\n\nBest regards,\n{sender_name}"
 
-                                            # Send email
-                                            with st.spinner("Sending email..."):
+                                        # Send email logic
+                                        with st.spinner("Sending email..."):
+                                            try:
                                                 status_container = st.empty()
                                                 status_container.info("Preparing to send email...")
                                                 
@@ -169,11 +173,11 @@ if submit_button:
                                                     ❌ Failed to send email:
                                                     Error: {email_result['message']}
                                                     """)
-                                        except Exception as e:
-                                            st.error(f"❌ Error sending email: {str(e)}")
+                                            except Exception as e:
+                                                st.error(f"❌ Error sending email: {str(e)}")
                             
                             else:
-                                # Handle other task types
+                                # Handle other task types as before
                                 col1, col2 = st.columns(2)
                                 with col1:
                                     st.markdown(f"**Task Type:** {interpreted['task_type'].upper()}")

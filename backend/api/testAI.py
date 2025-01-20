@@ -45,7 +45,7 @@ async def test_task_creation():
         {
             "task_type": "email",
             "task_details": {
-                "to": "john@example.com",
+                "to": "kejimone@gmail.com",
                 "subject": "Quarterly Project Review Meeting",
                 "content": "Need to schedule a comprehensive review of Q1 projects."
             },
@@ -127,7 +127,7 @@ async def test_task_creation():
 async def test_prompt_analysis():
     """Test prompt analysis and routing"""
     test_prompts = [
-        "Send an email to john@example.com about the project meeting tomorrow",
+        "Send an email to kejimone@gmail.com about the project meeting tomorrow",
         "Remind me to prepare presentation slides by next Tuesday",
         "Create a todo list for the website redesign project",
     ]

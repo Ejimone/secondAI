@@ -4,6 +4,8 @@ from langchain.agents import AgentType, initialize_agent
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory, ConversationBufferWindowMemory
 from langchain_openai import OpenAI
+# import googleapiclient
+import googleapiclient.discovery 
 from langchain.chains import LLMChain, ConversationChain
 from dotenv import load_dotenv
 from google.generativeai import GenerativeModel
@@ -11,6 +13,8 @@ import google.generativeai as genai
 import openai
 from langchain_community.utilities import SerpAPIWrapper
 import asyncio
+# import googleapiclient
+# import googleapiclient.discovery 
 import requests
 import uuid
 from datetime import datetime
@@ -23,8 +27,16 @@ import pickle
 import base64
 from email.mime.text import MIMEText
 import pytz
-from typing import Dict, Any
-
+from typing import Dict, Any, List
+from bs4 import BeautifulSoup
+import urllib.parse
+import re
+# import genai
+import google.generativeai as genai
+from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +50,10 @@ os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(os.path.dirname(CURRENT_DIR))  # Go up two levels to project root
 
+# Define the path to the credentials file
+CREDENTIALS_PATH = os.path.join(BASE_DIR, 'credentials.json')  # Ensure this points to the correct location
+TOKEN_PATH = os.path.join(BASE_DIR, 'token.pickle')
+
 # Add these constants at the top of the file
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
@@ -45,28 +61,25 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.modify'
 ]
 
-def check_credentials():
-    """Check if Gmail credentials are properly set up"""
+def check_credentials() -> Dict[str, Any]:
+    """Check if Gmail credentials are properly configured"""
     try:
-        if not os.path.exists(CREDENTIALS_PATH):
-            return {
-                "status": "error", 
-                "message": f"credentials.json not found at {CREDENTIALS_PATH}"
-            }
-        
         service = get_gmail_service()
-        # Test the service by getting user profile
-        profile = service.users().getProfile(userId='me').execute()
+        if service:
+            user_profile = service.users().getProfile(userId='me').execute()
+            return {
+                "status": "success",
+                "email": user_profile['emailAddress']
+            }
         return {
-            "status": "success", 
-            "email": profile['emailAddress'],
-            "message": "Gmail API configured successfully"
+            "status": "error",
+            "message": "Gmail service not initialized"
         }
     except Exception as e:
-        return {"status": "error", "message": str(e)}
-    
-TOKEN_PATH = os.path.join(BASE_DIR, 'token.pickle')
-CREDENTIALS_PATH = os.path.join(BASE_DIR, 'credentials.json')
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 def initialize_openai():
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -83,32 +96,13 @@ def initialize_openai():
         return None, False  # Return a flag indicating failure
 
 def initialize_gemini():
+    """Initialize Gemini model"""
     try:
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        if not GEMINI_API_KEY:
-            print("GEMINI_API_KEY not found in environment variables")
-            return None
-            
-        # Configure genai with safety settings and timeout
-        genai.configure(
-            api_key=GEMINI_API_KEY,
-            transport="rest"  # Use REST instead of gRPC
-        )
-        
-        # Initialize the model with specific configuration
-        model = GenerativeModel(
-            model_name='gemini-pro',
-            safety_settings={
-                "HARM_CATEGORY_HARASSMENT": "block_none",
-                "HARM_CATEGORY_HATE_SPEECH": "block_none",
-                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "block_none",
-                "HARM_CATEGORY_DANGEROUS_CONTENT": "block_none"
-            }
-        )
-        
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        model = genai.GenerativeModel('gemini-pro')
         return model
     except Exception as e:
-        print(f"Gemini API Error: {e}")
+        print(f"Error initializing Gemini: {str(e)}")
         return None
 
 
@@ -555,7 +549,7 @@ async def create_task(task_type, task_details, due_date=None, priority="medium")
             "type": task_type,
             "priority": priority,
             "due_date": due_date,
-            "created_at": datetime.datetime.now().isoformat(),
+            "created_at": datetime.now().isoformat(),
             "status": "created"
         }
 
@@ -579,12 +573,23 @@ async def create_task(task_type, task_details, due_date=None, priority="medium")
             """
             
             response = gemini_model.generate_content(email_prompt)
-            
             task["email_content"] = {
                 "to": task_details.get('to'),
                 "subject": task_details.get('subject', 'Meeting Discussion'),
                 "generated_content": response.text.strip()
             }
+
+            # Send the email after creating the task
+            email_response = await send_email(
+                to=task["email_content"]["to"],
+                subject=task["email_content"]["subject"],
+                body=task["email_content"]["generated_content"]
+            )
+            if email_response["status"] == "error":
+                return {
+                    "status": "error",
+                    "message": f"Email could not be sent: {email_response['message']}"
+                }
 
         return {
             "status": "success",
@@ -609,7 +614,6 @@ async def handle_task_creation(task_request):
         response = await create_task(
             task_type=task_request["task_type"],
             task_details=task_request["task_details"],
-            due_date=task_request.get("due_date"),
             priority=task_request.get("priority", "medium")
         )
 
@@ -620,6 +624,40 @@ async def handle_task_creation(task_request):
             "status": "error",
             "message": f"Error in task creation: {str(e)}"
         }
+
+async def send_email(to: str, subject: str, body: str) -> Dict[str, Any]:
+    try:
+        logger.info(f"Sending email to: {to}")
+        service = get_gmail_service()
+        if not service:
+            logger.error("Could not initialize Gmail service")
+            return {"status": "error", "message": "Could not initialize Gmail service"}
+
+        message = MIMEText(body)
+        message['to'] = to
+        message['subject'] = subject
+        user_profile = service.users().getProfile(userId='me').execute()
+        message['from'] = user_profile['emailAddress']
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        body = {'raw': raw}
+
+        logger.info(f"Email content:\n{message.as_string()}") #Added logging for email content
+
+        sent_message = service.users().messages().send(userId='me', body=body).execute()
+        logger.info(f"Email sent successfully. Message ID: {sent_message['id']}")
+        return {
+            "status": "success",
+            "message_id": sent_message['id'],
+            "details": {"to": to, "subject": subject, "from": message['from']}
+        }
+    except googleapiclient.errors.HttpError as e:
+        logger.error(f"HTTP Error sending email: {e}")
+        error_details = json.loads(e.content.decode()) # Try to parse the error details from the JSON response
+        error_message = error_details.get('error', {}).get('message', 'Unspecified HTTP Error')
+        return {"status": "error", "message": error_message}
+    except Exception as e:
+        logger.exception(f"Unexpected error sending email: {e}")  # Log the full stack trace
+        return {"status": "error", "message": str(e)}
 
 def get_gmail_service():
     """Initialize Gmail API service"""
@@ -634,10 +672,9 @@ def get_gmail_service():
                 creds.refresh(Request())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    CREDENTIALS_PATH, 
+                    CREDENTIALS_PATH,  # Use the updated path here
                     SCOPES
                 )
-                # Simplified flow without extra parameters
                 creds = flow.run_local_server(port=0)
             with open(TOKEN_PATH, 'wb') as token:
                 pickle.dump(creds, token)
@@ -647,53 +684,215 @@ def get_gmail_service():
         print(f"Error in get_gmail_service: {str(e)}")
         raise
 
-async def send_email(to: str, subject: str, body: str):
-    """Send email using Gmail API"""
+def clean_text(text: str) -> str:
+    """Clean scraped text by removing extra whitespace and special characters"""
+    text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces with single space
+    text = re.sub(r'\n+', '\n', text)  # Replace multiple newlines with single newline
+    return text.strip()
+
+async def scrape_url(url: str) -> str:
+    """Scrape content from a URL"""
     try:
-        print(f"Attempting to send email to: {to}")  # Debug log
-        service = get_gmail_service()
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
         
-        # Create the email message
-        message = MIMEText(body)
-        message['to'] = to
-        message['subject'] = subject
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Get user's email address for the 'from' field
-        user_profile = service.users().getProfile(userId='me').execute()
-        message['from'] = user_profile['emailAddress']
+        # Remove unwanted elements
+        for element in soup(['script', 'style', 'nav', 'footer', 'iframe']):
+            element.decompose()
         
-        # Encode the message for Gmail API
-        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        # Extract main content
+        main_content = ""
         
-        print("Sending email via Gmail API...")  # Debug log
-        # Send the email
-        sent_message = service.users().messages().send(
-            userId='me',
-            body={'raw': raw_message}
-        ).execute()
+        # Try to find main content container
+        content_tags = soup.find_all(['article', 'main', 'div'], class_=re.compile(r'(content|article|post|entry)'))
+        if content_tags:
+            main_content = content_tags[0].get_text()
+        else:
+            # Fallback to paragraphs
+            paragraphs = soup.find_all('p')
+            main_content = ' '.join(p.get_text() for p in paragraphs)
         
-        print(f"Email sent successfully. Message ID: {sent_message['id']}")  # Debug log
+        return clean_text(main_content)
+    except Exception as e:
+        print(f"Error scraping {url}: {str(e)}")
+        return ""
+
+async def summarize_content(content: str, gemini_model) -> str:
+    """Summarize content using Gemini"""
+    try:
+        summary_prompt = f"""
+        Summarize this content concisely and clearly:
+        {content[:10000]}  # Limit content length to avoid token limits
+        
+        Provide:
+        1. Key Points
+        2. Important Facts
+        3. Relevant Dates
+        4. Additional Context
+        
+        Format in markdown for readability.
+        """
+        
+        summary = gemini_model.generate_content(summary_prompt)
+        return summary.text.strip()
+    except Exception as e:
+        print(f"Error summarizing content: {str(e)}")
+        return content[:1000] + "..."  # Fallback to truncated content
+
+async def web_search(query: str) -> Dict[str, Any]:
+    """Perform web search, scrape URLs, and summarize content"""
+    try:
+        # Direct API call to SerpAPI
+        params = {
+            "api_key": os.getenv("SERPAPI_API_KEY"),
+            "engine": "google",
+            "q": query,
+            "num": 5,
+            "gl": "us"
+        }
+        
+        search_response = requests.get("https://serpapi.com/search", params=params)
+        raw_results = search_response.json()
+        
+        print(f"Search query: {query}")  # Debug log
+        
+        if "error" in raw_results:
+            return {
+                "status": "success",
+                "data": f"Search API error: {raw_results['error']}",
+                "type": "search"
+            }
+        
+        search_results = raw_results.get("organic_results", [])
+        
+        if not search_results:
+            return {
+                "status": "success",
+                "data": f"No search results found for query: {query}",
+                "type": "search"
+            }
+        
+        gemini_model = initialize_gemini()
+        if not gemini_model:
+            return {
+                "status": "error",
+                "message": "Could not initialize Gemini model"
+            }
+        
+        # Process each result individually for detailed summaries
+        detailed_summaries = []
+        for result in search_results[:3]:
+            try:
+                url = result.get('link', '')
+                title = result.get('title', 'No title')
+                snippet = result.get('snippet', '')
+                
+                # Scrape content from URL
+                content = await scrape_url(url) if url else ""
+                
+                # Generate detailed summary for each source
+                source_prompt = f"""
+                Provide a comprehensive analysis of this content about {query}:
+
+                Title: {title}
+                URL: {url}
+                Content: {content if content else snippet}
+
+                Requirements:
+                1. Write at least 250 words
+                2. Include specific details, facts, and figures
+                3. Mention dates and relevant context
+                4. Analyze the significance of the information
+                5. Include any controversies or different perspectives
+                6. Explain how this information relates to {query}
+
+                Format the response with these sections:
+                1. Main Points (detailed explanation)
+                2. Key Facts and Figures
+                3. Context and Background
+                4. Analysis and Implications
+                5. Related Developments
+                """
+                
+                source_summary = gemini_model.generate_content(source_prompt)
+                detailed_summaries.append({
+                    "title": title,
+                    "url": url,
+                    "summary": source_summary.text.strip()
+                })
+                
+            except Exception as e:
+                print(f"Error processing result {url}: {str(e)}")
+                continue
+        
+        # Generate comprehensive overview
+        overview_prompt = f"""
+        Create a comprehensive overview of {query} based on all these sources:
+
+        {[summary['summary'] for summary in detailed_summaries]}
+
+        Requirements:
+        1. Write at least 300 words
+        2. Synthesize information from all sources
+        3. Highlight key themes and patterns
+        4. Include contrasting viewpoints if any
+        5. Provide temporal context (recent vs historical information)
+        6. Explain broader implications
+
+        Format with these sections:
+        1. Executive Summary
+        2. Detailed Analysis
+        3. Key Developments
+        4. Implications and Future Outlook
+        """
+        
+        overview_response = gemini_model.generate_content(overview_prompt)
+        overview = overview_response.text.strip()
+        
+        # Format the final output
+        formatted_result = f"""
+# Comprehensive Analysis: {query}
+
+{overview}
+
+## Detailed Source Summaries
+
+"""
+        # Add individual source summaries
+        for idx, summary in enumerate(detailed_summaries, 1):
+            formatted_result += f"""
+### Source {idx}: {summary['title']}
+[Link to original article]({summary['url']})
+
+{summary['summary']}
+
+---
+"""
         
         return {
             "status": "success",
-            "message_id": sent_message['id'],
-            "message": "Email sent successfully",
-            "details": {
-                "to": to,
-                "subject": subject,
-                "from": user_profile['emailAddress']
-            }
+            "data": formatted_result,
+            "type": "search"
         }
+        
     except Exception as e:
-        print(f"Error sending email: {str(e)}")  # Debug log
+        print(f"Search error: {str(e)}")  # Debug log
         return {
-            "status": "error",
-            "message": f"Failed to send email: {str(e)}",
-            "details": {
-                "to": to,
-                "subject": subject,
-                "error_type": type(e).__name__
-            }
+            "status": "success",
+            "data": f"""
+# Search Error
+
+⚠️ An error occurred while searching for "{query}":
+- Error details: {str(e)}
+
+Please try again with a different search query.
+            """,
+            "type": "search"
         }
 
 async def analyze_prompt_and_route_task(user_prompt: str):
@@ -703,56 +902,97 @@ async def analyze_prompt_and_route_task(user_prompt: str):
         if not gemini_model:
             return {"status": "error", "message": "Could not initialize Gemini model"}
 
-        # First, determine if this is a real-time information request
+        # First, determine if this is a task creation request
         classification_prompt = f"""
         Classify this request. Return EXACTLY in this format without any additional text:
         {{
-            "type": "REAL_TIME_INFO",
-            "category": "weather"
-        }}
-        
-        OR
-        
-        {{
             "type": "TASK_CREATION",
-            "category": "email"
+            "category": "email",
+            "query_type": "email_task"
         }}
         
         Request: "{user_prompt}"
         """
         
         response = gemini_model.generate_content(classification_prompt)
-        response_text = response.text.strip()
+        classification = json.loads(response.text.strip())
         
-        try:
-            classification = json.loads(response_text)
-        except json.JSONDecodeError as e:
-            print(f"JSON parsing error: {str(e)}")
-            print(f"Raw response: {response_text}")
-            return {
-                "status": "error",
-                "message": "Failed to understand the request. Please try rephrasing."
-            }
-        
-        if classification.get("type") == "REAL_TIME_INFO":
-            return await real_time_search(user_prompt)
-        elif classification.get("type") == "TASK_CREATION":
-            # ... rest of your existing task creation code ...
-            pass
-        else:
-            return {
-                "status": "error",
-                "message": "Unsupported request type. Please try a different request."
+        if classification["type"] == "TASK_CREATION" and classification["category"] == "email":
+            # Extract email details using a specific prompt
+            email_prompt = f"""
+            Extract email details from this request and return a JSON object.
+            Request: "{user_prompt}"
+            
+            Return EXACTLY in this format without any additional text:
+            {{
+                "task_type": "email",
+                "priority": "medium",
+                "task_details": {{
+                    "to": "recipient email",
+                    "subject": "Meeting Discussion",
+                    "content": "email body content",
+                    "sender_name": "OpenCodeHq.Agent",
+            "recipient_name": task_details.get('recipient_name', 'Banxs'),
+            "sender_name": task_details.get('sender_name', 'Erico')
+                }}
+            }}
+            """
+            
+            email_response = gemini_model.generate_content(email_prompt)
+            email_info = json.loads(email_response.text.strip())
+            
+            # Create email content with proper formatting
+            email_content = f"""
+Dear {email_info['task_details']['recipient_name']},
+
+{email_info['task_details']['content']}
+
+Best regards,
+{email_info['task_details']['sender_name']}
+            """
+            
+            # Update the task details with formatted content
+            email_info['task_details']['content'] = email_content.strip()
+            
+            # Create the task
+            result = {
+                "status": "success",
+                "task": {
+                    "task_id": str(uuid.uuid4()),
+                    "type": "email",
+                    "priority": email_info.get("priority", "medium"),
+                    "email_content": {
+                        "to": email_info['task_details']['to'],
+                        "subject": email_info['task_details']['subject'],
+                        "generated_content": email_content
+                    }
+                }
             }
             
+            return {
+                "status": "success",
+                "original_prompt": user_prompt,  # Include original prompt
+                "request_type": "TASK_CREATION",
+                "interpreted_task": email_info,
+                "task_result": result
+            }
+            
+        elif classification["type"] in ["REAL_TIME_INFO", "WEB_SEARCH"]:
+            return await web_search(user_prompt)
+            
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {str(e)}")
+        return {
+            "status": "error",
+            "message": "Failed to parse task details. Please try rephrasing your request."
+        }
     except Exception as e:
-        print(f"Error in analyze_prompt_and_route_task: {str(e)}")  # Debug logging
+        print(f"Error in analyze_prompt_and_route_task: {str(e)}")
         return {
             "status": "error",
             "message": f"Error processing prompt: {str(e)}"
         }
 
-# Add this to the top of ai.py for debugging
 
 
 if __name__ == "__main__":

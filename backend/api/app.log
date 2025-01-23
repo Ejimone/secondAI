@@ -1,0 +1,63 @@
+2025-01-21 11:59:48,381 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:02:18,730 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:02:52,058 [INFO] __main__: Initializing AI Service...
+2025-01-21 12:02:52,846 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:09:49,319 [ERROR] __main__: Test execution failed: 
+2025-01-21 12:09:49,319 [INFO] __main__: Service test completed
+2025-01-21 12:09:56,297 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 12:09:57,050 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:10:52,385 [ERROR] __main__: Unexpected error sending email: 'AIService' object has no attribute '_create_email_message'
+2025-01-21 12:10:52,396 [INFO] __main__: Test suite execution completed
+2025-01-21 12:16:04,706 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 12:16:05,686 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:16:33,307 [INFO] __main__: Email sent successfully to kejimone30@gmail.com
+2025-01-21 12:16:33,315 [INFO] __main__: Test suite execution completed
+2025-01-21 12:23:49,548 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 12:23:50,331 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:24:46,496 [INFO] httpx: HTTP Request: POST https://api.openai.com/v1/completions "HTTP/1.1 401 Unauthorized"
+2025-01-21 12:24:47,673 [INFO] __main__: Email sent successfully to kejimone30@gmail.com
+2025-01-21 12:24:47,677 [INFO] __main__: Test suite execution completed
+2025-01-21 12:29:44,003 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 12:29:44,003 [INFO] __main__: Initialized Gemini model successfully
+2025-01-21 12:29:44,013 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:30:26,096 [INFO] __main__: Email sent successfully to kejimone30@gmail.com
+2025-01-21 12:30:26,098 [INFO] __main__: Test suite execution completed
+2025-01-21 12:32:59,052 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 12:32:59,057 [INFO] __main__: Initialized Gemini model successfully
+2025-01-21 12:32:59,057 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:33:27,094 [ERROR] __main__: Test execution failed: 
+2025-01-21 12:33:27,096 [INFO] __main__: Test suite execution completed
+2025-01-21 12:33:34,914 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 12:33:34,914 [INFO] __main__: Initialized Gemini model successfully
+2025-01-21 12:33:34,919 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 12:34:42,837 [INFO] __main__: Email sent successfully to kejimone30@gmail.com
+2025-01-21 12:34:42,843 [INFO] __main__: Test suite execution completed
+2025-01-21 14:55:34,569 [INFO] __main__: Starting AI Service test suite...
+2025-01-21 14:55:34,575 [INFO] __main__: Initialized Gemini model successfully
+2025-01-21 14:55:34,805 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-21 14:57:27,159 [INFO] __main__: Email sent successfully to eejimone@gmail.com
+2025-01-21 14:57:27,184 [INFO] __main__: Test suite execution completed
+2025-01-22 12:59:57,222 [INFO] __main__: Starting AI Service test suite...
+2025-01-22 12:59:57,224 [INFO] __main__: Initialized Gemini model successfully
+2025-01-22 12:59:57,443 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-22 13:00:08,039 [ERROR] __main__: Test execution failed: 
+2025-01-22 13:00:08,041 [INFO] __main__: Test suite execution completed
+2025-01-22 16:18:48,713 [INFO] __main__: Starting AI Service test suite...
+2025-01-22 16:18:48,736 [INFO] __main__: Initialized Gemini model successfully
+2025-01-22 16:18:48,983 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-22 16:20:59,810 [WARNING] __main__: Gemini generation failed: ("Invalid operation: The `response.text` quick accessor requires the response to contain a valid `Part`, but none were returned. The candidate's [finish_reason](https://ai.google.dev/api/generate-content#finishreason) is 3. The candidate's safety_ratings are: [category: HARM_CATEGORY_SEXUALLY_EXPLICIT\nprobability: MEDIUM\n, category: HARM_CATEGORY_HATE_SPEECH\nprobability: NEGLIGIBLE\n, category: HARM_CATEGORY_HARASSMENT\nprobability: NEGLIGIBLE\n, category: HARM_CATEGORY_DANGEROUS_CONTENT\nprobability: NEGLIGIBLE\n].", [category: HARM_CATEGORY_SEXUALLY_EXPLICIT
+probability: MEDIUM
+, category: HARM_CATEGORY_HATE_SPEECH
+probability: NEGLIGIBLE
+, category: HARM_CATEGORY_HARASSMENT
+probability: NEGLIGIBLE
+, category: HARM_CATEGORY_DANGEROUS_CONTENT
+probability: NEGLIGIBLE
+]), falling back to OpenAI
+2025-01-22 16:20:59,818 [ERROR] __main__: Unexpected error sending email: 'NoneType' object has no attribute 'encode'
+2025-01-22 16:20:59,819 [INFO] __main__: Test suite execution completed
+2025-01-22 16:21:24,766 [INFO] __main__: Starting AI Service test suite...
+2025-01-22 16:21:24,766 [INFO] __main__: Initialized Gemini model successfully
+2025-01-22 16:21:24,777 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-22 16:23:05,659 [INFO] __main__: Email sent successfully to nkemjikadavid900@gmail.com
+2025-01-22 16:23:05,665 [INFO] __main__: Test suite execution completed

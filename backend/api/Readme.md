@@ -264,3 +264,21 @@ The extension will have the following structure:
 - **Browser Extension:** For seamless web content interaction.
 
 ---
+
+#importing the modules from the other files, here, the bot will be able to use the functions from the other files, it will listen to the wakeword, if a command is given it would analyse the prompt, check for the right functions to call and assign that to the neccessaty function, the bot will be able to send emails, create tasks, summarize content, scrape webpages, get the weather, search in real time, process documents, ask questions, stream answers, stream web search, analyze prompts and route tasks, manage todos, and send emails, else, it would answer the default system message, and the user can end the conversation by saying "thank you for your help", the bot will respond with "You're welcome! Have a great day!" and the conversation will end, the bot will be able to respond to any question or statement that is asked of it or tasked to it, it will generate words in a user-friendly manner, it can also ask questions to the user to get more information, be playful and generate words of value prioritising logic and facts
+
+# from ai import send_email, handle_task_creation, create_task, get_gmail_service, scrape_url, summarize_content
+
+# from docsprocessing import RAGProcessor # Import the RAGProcessor class from docsprocessing.py, RAGPprocessor it has functions to process_documentsm \_process_urls, \_process_pdf, ask_question, stream_answer, \_stram_web_search and the main function which was used to test the class, which could be modified to be used to be used
+
+# from realtimeSearch import get_current_time, real_time_search
+
+# from weather import get_weather
+
+# from sendEmail import test_service, send_email
+
+# from tasks import analyze_prompt_and_route_task
+
+# from todo import TodoManager
+
+# from webScrapeAndProcess import web_search, scrape_url, summarize_content, scrape_webpages_with_serpapi

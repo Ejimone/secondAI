@@ -61,3 +61,48 @@ probability: NEGLIGIBLE
 2025-01-22 16:21:24,777 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
 2025-01-22 16:23:05,659 [INFO] __main__: Email sent successfully to nkemjikadavid900@gmail.com
 2025-01-22 16:23:05,665 [INFO] __main__: Test suite execution completed
+2025-01-23 05:31:41,314 [INFO] __main__: Starting AI Service test suite...
+2025-01-23 05:31:41,333 [INFO] __main__: Initialized Gemini model successfully
+2025-01-23 05:31:41,337 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-23 05:31:41,345 [ERROR] __main__: Service initialization failed: Client.__init__() missing 1 required keyword-only argument: 'settings'
+2025-01-23 05:31:41,361 [INFO] __main__: Test suite execution completed
+2025-01-23 05:33:31,751 [INFO] __main__: Starting AI Service test suite...
+2025-01-23 05:33:31,751 [INFO] __main__: Initialized Gemini model successfully
+2025-01-23 05:33:31,763 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-23 05:35:07,592 [INFO] __main__: Email sent successfully to kejimone30@gmail.com
+2025-01-23 05:35:07,597 [INFO] __main__: Test suite execution completed
+2025-01-23 07:35:50,932 [INFO] __main__: Starting AI Service test suite...
+2025-01-23 07:35:50,932 [INFO] __main__: Initialized Gemini model successfully
+2025-01-23 07:35:50,932 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-23 07:37:16,664 [INFO] __main__: Email sent successfully to kejimone30@gmail.com
+2025-01-23 07:37:16,669 [INFO] __main__: Test suite execution completed
+2025-01-23 07:41:19,296 [INFO] __main__: Starting AI Service test suite...
+2025-01-23 07:41:19,304 [INFO] __main__: Initialized Gemini model successfully
+2025-01-23 07:41:19,304 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-23 07:43:23,462 [INFO] __main__: Email sent successfully to pinsahub@gmail.com
+2025-01-23 07:43:23,465 [INFO] __main__: Test suite execution completed
+2025-01-23 07:46:17,925 [INFO] __main__: Starting AI Service test suite...
+2025-01-23 07:46:17,925 [INFO] __main__: Initialized Gemini model successfully
+2025-01-23 07:46:17,933 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-23 07:46:20,615 [ERROR] __main__: Test execution failed: 
+2025-01-23 07:46:20,616 [INFO] __main__: Test suite execution completed
+2025-01-24 13:46:15,067 [INFO] __main__: Starting AI Service test suite...
+2025-01-24 13:46:15,085 [INFO] __main__: Initialized Gemini model successfully
+2025-01-24 13:46:15,347 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-24 13:46:15,426 [ERROR] __main__: Service initialization failed: No module named 'oauth2client'
+2025-01-24 13:46:15,427 [INFO] __main__: Test suite execution completed
+2025-01-24 13:48:40,082 [INFO] __main__: Starting AI Service test suite...
+2025-01-24 13:48:40,097 [INFO] __main__: Initialized Gemini model successfully
+2025-01-24 13:48:40,099 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-24 13:48:40,107 [ERROR] __main__: Service initialization failed: No module named 'oauth2client'
+2025-01-24 13:48:40,108 [INFO] __main__: Test suite execution completed
+2025-01-24 13:49:58,066 [INFO] __main__: Starting AI Service test suite...
+2025-01-24 13:49:58,070 [INFO] __main__: Initialized Gemini model successfully
+2025-01-24 13:49:58,076 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-24 13:50:03,574 [ERROR] __main__: Test execution failed: 
+2025-01-24 13:50:03,574 [INFO] __main__: Test suite execution completed
+2025-01-24 13:51:09,548 [INFO] __main__: Starting AI Service test suite...
+2025-01-24 13:51:09,551 [INFO] __main__: Initialized Gemini model successfully
+2025-01-24 13:51:09,554 [INFO] googleapiclient.discovery_cache: file_cache is only supported with oauth2client<4.0.0
+2025-01-24 13:52:14,614 [INFO] __main__: Email sent successfully to gejimone@gmail.com
+2025-01-24 13:52:14,618 [INFO] __main__: Test suite execution completed

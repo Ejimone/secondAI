@@ -1,104 +1,144 @@
 import json
+import logging
 import uuid
+from typing import Dict, Any
+import asyncio
 from ai import initialize_gemini
-from webScrapeAndProcess import web_search
+from docsprocessing import RAGProcessor
+from realtimeSearch import real_time_search
+from weather import get_weather
+from todo import TodoManager
+from sendEmail import AIService
+from webScrapeAndProcess import web_search  # Add this import
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-async def analyze_prompt_and_route_task(user_prompt: str):
-    """Analyzes user prompt and routes to appropriate function"""
-    try:
-        gemini_model = initialize_gemini()
-        if not gemini_model:
-            return {"status": "error", "message": "Could not initialize Gemini model"}
-
-        # First, determine if this is a task creation request
-        classification_prompt = f"""
-        Classify this request. Return EXACTLY in this format without any additional text:
-        {{
-            "type": "TASK_CREATION",
-            "category": "email",
-            "query_type": "email_task"
-        }}
+class TaskRouter:
+    def __init__(self):
+        self.ai_service = AIService()
+        self.todo_manager = TodoManager()
+        self.rag_processor = RAGProcessor()
         
-        Request: "{user_prompt}"
-        """
-        
-        response = gemini_model.generate_content(classification_prompt)
-        classification = json.loads(response.text.strip())
-        
-        if classification["type"] == "TASK_CREATION" and classification["category"] == "email":
-            # Extract email details using a specific prompt
-            email_prompt = f"""
-            Extract email details from this request and return a JSON object.
-            Request: "{user_prompt}"
-            
-            Return EXACTLY in this format without any additional text:
-            {{
-                "task_type": "email",
-                "priority": "medium",
-                "task_details": {{
-                    "to": "recipient email",
-                    "subject": "Meeting Discussion",
-                    "content": "email body content",
-                    "sender_name": "OpenCodeHq.Agent",
-            "recipient_name": task_details.get('recipient_name', 'Banxs'),
-            "sender_name": task_details.get('sender_name', 'Erico')
-                }}
-            }}
-            """
-            
-            email_response = gemini_model.generate_content(email_prompt)
-            email_info = json.loads(email_response.text.strip())
-            
-            # Create email content with proper formatting
-            email_content = f"""
-Dear {email_info['task_details']['recipient_name']},
+    async def analyze_prompt_and_route_task(self, user_prompt: str) -> Dict[str, Any]:
+        """Analyzes user prompt and routes to appropriate function"""
+        try:
+            gemini_model = initialize_gemini()
+            if not gemini_model:
+                return {"status": "error", "message": "Could not initialize Gemini model"}
 
-{email_info['task_details']['content']}
-
-Best regards,
-{email_info['task_details']['sender_name']}
-            """
-            
-            # Update the task details with formatted content
-            email_info['task_details']['content'] = email_content.strip()
-            
-            # Create the task
-            result = {
-                "status": "success",
-                "task": {
-                    "task_id": str(uuid.uuid4()),
-                    "type": "email",
-                    "priority": email_info.get("priority", "medium"),
-                    "email_content": {
-                        "to": email_info['task_details']['to'],
-                        "subject": email_info['task_details']['subject'],
-                        "generated_content": email_content
-                    }
+            classification_prompt = """
+            Analyze this request and classify it. Return JSON structure:
+            For real-time info (weather, time, current events):
+            {
+                "type": "REALTIME",
+                "details": {
+                    "query": "processed query",
+                    "category": "weather|time|news"
                 }
             }
-            
-            return {
-                "status": "success",
-                "original_prompt": user_prompt,  # Include original prompt
-                "request_type": "TASK_CREATION",
-                "interpreted_task": email_info,
-                "task_result": result
+            For web search/research:
+            {
+                "type": "WEBSEARCH",
+                "details": {
+                    "query": "search query"
+                }
             }
+            For emails:
+            {
+                "type": "EMAIL",
+                "details": {
+                    "to": "email@address.com",
+                    "subject": "Generated subject",
+                    "body": "Generated email body"
+                }
+            }
+            For todos:
+            {
+                "type": "TODO",
+                "details": {
+                    "query": "todo task details"
+                }
+            }
+            """
             
-        elif classification["type"] in ["REAL_TIME_INFO", "WEB_SEARCH"]:
-            return await web_search(user_prompt)
+            logger.info(f"Processing prompt: {user_prompt}")
             
-    except json.JSONDecodeError as e:
-        print(f"JSON parsing error: {str(e)}")
-        return {
-            "status": "error",
-            "message": "Failed to parse task details. Please try rephrasing your request."
-        }
-    except Exception as e:
-        print(f"Error in analyze_prompt_and_route_task: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Error processing prompt: {str(e)}"
-        }
+            response = gemini_model.generate_content(
+                classification_prompt + f'\nRequest: "{user_prompt}"'
+            )
+            
+            # Clean response text
+            response_text = response.text.replace("```json", "").replace("```", "").strip()
+            classification = json.loads(response_text)
+            
+            logger.info(f"Classification: {classification}")
+            
+            # Route based on classification
+            match classification["type"].upper():
+                case "REALTIME":
+                    return await real_time_search(user_prompt)
+                    
+                case "WEBSEARCH":
+                    return await web_search(classification["details"]["query"])
+                    
+                case "EMAIL":
+                    details = classification["details"]
+                    # to
+                    return await self.ai_service.send_email(
+                        to=details["to"],
+                        subject=details["subject"],
+                        body=details["body"]
+                    )
+                    
+                case "TODO":
+                    return await self.todo_manager.process_natural_language_request(
+                        classification["details"]["query"]
+                    )
+                    
+                case _:
+                    logger.error(f"Unknown request type: {classification['type']}")
+                    return {
+                        "status": "error",
+                        "message": f"Unknown request type: {classification['type']}"
+                    }
 
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error: {str(e)}")
+            return {"status": "error", "message": "Failed to parse response"}
+        except KeyError as e:
+            logger.error(f"Missing required field: {str(e)}")
+            return {"status": "error", "message": f"Missing required field: {str(e)}"}
+        except Exception as e:
+            logger.error(f"Error processing request: {str(e)}", exc_info=True)
+            return {
+                "status": "error", 
+                "message": f"Error processing request: {str(e)}"
+            }
+
+# Initialize router
+task_router = TaskRouter()
+
+# Main entry point
+async def route_task(user_prompt: str) -> Dict[str, Any]:
+    """Main entry point for task routing"""
+    return await task_router.analyze_prompt_and_route_task(user_prompt)
+
+async def main():
+    while True:
+        try:
+            user_prompt = input("What would you like to do? (or 'exit' to quit): ")
+            if user_prompt.lower() == 'exit':
+                break
+                
+            response = await route_task(user_prompt)
+            print("\nResponse:", json.dumps(response, indent=2))
+            
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

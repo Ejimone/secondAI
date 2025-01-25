@@ -219,5 +219,56 @@
     "created_at": "2025-01-21T19:11:02.870978",
     "last_modified": "2025-01-21T19:11:02.870978",
     "calendar_event_id": null
+  },
+  "60382f45-1663-46d8-a22f-0d435dd2e3e4": {
+    "id": "60382f45-1663-46d8-a22f-0d435dd2e3e4",
+    "title": "Elon Musk",
+    "description": null,
+    "due_date": null,
+    "priority": "medium",
+    "status": "pending",
+    "category": "reminder",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-23T09:16:09.406960",
+    "last_modified": "2025-01-23T09:16:09.406960",
+    "calendar_event_id": null
+  },
+  "836148b6-c04d-4fbc-aa8b-b218741398e4": {
+    "id": "836148b6-c04d-4fbc-aa8b-b218741398e4",
+    "title": "Who is the current president of America",
+    "description": "Find out who is the current president of America",
+    "due_date": "2025-01-23T00:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "task",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-23T09:17:32.070564",
+    "last_modified": "2025-01-23T09:17:32.070564",
+    "calendar_event_id": null
+  },
+  "09bd8ff8-815b-4af5-b9d1-885bac6dbb69": {
+    "id": "09bd8ff8-815b-4af5-b9d1-885bac6dbb69",
+    "title": "Create a Website",
+    "description": "Create a todo list for creating a website",
+    "due_date": "2025-01-23T00:00:00",
+    "priority": "low",
+    "status": "pending",
+    "category": "task",
+    "location": null,
+    "weather_check": false,
+    "notifications": [
+      "email"
+    ],
+    "created_at": "2025-01-23T09:31:31.109430",
+    "last_modified": "2025-01-23T09:31:31.109430",
+    "calendar_event_id": null
   }
 }

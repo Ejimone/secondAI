@@ -7,9 +7,10 @@ from ai import initialize_gemini
 from docsprocessing import RAGProcessor
 from realtimeSearch import real_time_search
 from weather import get_weather
-from todo import TodoManager
-from sendEmail import AIService
-from webScrapeAndProcess import web_search  # Add this import
+from todo import TodoManager 
+from sendEmail import AIService, test_service  # Changed import
+from webScrapeAndProcess import web_search
+from Audio import speak
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +62,13 @@ class TaskRouter:
                     "query": "todo task details"
                 }
             }
+            For general conversation:
+            {
+                "type": "CONVERSATION",
+                "details": {
+                    "query": "conversation query"
+                }
+            }
             """
             
             logger.info(f"Processing prompt: {user_prompt}")
@@ -79,23 +87,22 @@ class TaskRouter:
             match classification["type"].upper():
                 case "REALTIME":
                     return await real_time_search(user_prompt)
+                
                     
                 case "WEBSEARCH":
                     return await web_search(classification["details"]["query"])
                     
                 case "EMAIL":
-                    details = classification["details"]
-                    # to
-                    return await self.ai_service.send_email(
-                        to=details["to"],
-                        subject=details["subject"],
-                        body=details["body"]
-                    )
+                    # Call test_service with the AIService instance
+                    return await test_service(self.ai_service)
                     
                 case "TODO":
                     return await self.todo_manager.process_natural_language_request(
                         classification["details"]["query"]
                     )
+                
+                case "CONVERSATION":
+                    return {"status": "success", "response": gemini_model.generate_content(user_prompt).text}
                     
                 case _:
                     logger.error(f"Unknown request type: {classification['type']}")

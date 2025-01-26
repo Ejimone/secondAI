@@ -37,6 +37,8 @@ from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+from sendEmail import test_service
+
 
 # Load environment variables
 load_dotenv()
@@ -154,39 +156,6 @@ def create_chain(use_gemini=False):
 # function to create tasks, in this function a user will be able to create a task and assign it to an agent, exmaple, a user can create a reminder, alarm, or a to-do list, and assign it to an agent, the agent can also go create emails, messages, or any other task, this would be done using langchain and google gemini
 
 
-
-def main():
-    """
-    Main function for backend initialization and testing
-    """
-    try:
-        # Initialize OpenAI
-        llm, is_openai_working = initialize_openai()
-        if is_openai_working:
-            tools = load_tools(["serpapi", "llm-math"], llm=llm)
-            agent = initialize_agent(
-                tools,
-                llm,
-                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=True
-            )
-            chain = create_chain(use_gemini=False)
-        else:
-            # Fallback to Gemini
-            chain = create_chain(use_gemini=True)
-        
-        return {
-            "status": "success",
-            "message": "Backend initialized successfully",
-            "openai_status": is_openai_working,
-            "chain": chain
-        }
-        
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Backend initialization failed: {str(e)}"
-        }
 
 async def create_task(task_type, task_details, due_date=None, priority="medium"):
     """Create a task with the specified details"""
@@ -396,6 +365,39 @@ async def summarize_content(content: str, gemini_model) -> str:
         return content[:1000] + "..."  # Fallback to truncated content
 
 
+
+def main():
+    """
+    Main function for backend initialization and testing
+    """
+    try:
+        # Initialize OpenAI
+        llm, is_openai_working = initialize_openai()
+        if is_openai_working:
+            tools = load_tools(["serpapi", "llm-math"], llm=llm)
+            agent = initialize_agent(
+                tools,
+                llm,
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                verbose=True
+            )
+            chain = create_chain(use_gemini=False)
+        else:
+            # Fallback to Gemini
+            chain = create_chain(use_gemini=True)
+        
+        return {
+            "status": "success",
+            "message": "Backend initialized successfully",
+            "openai_status": is_openai_working,
+            "chain": chain
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Backend initialization failed: {str(e)}"
+        }
 
 if __name__ == "__main__":
     main()

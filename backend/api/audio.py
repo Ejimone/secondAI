@@ -1,6 +1,8 @@
 import google.generativeai as genai
 import speech_recognition as sr
 import os
+import json
+import asyncio
 from faster_whisper import WhisperModel
 import pyaudio
 import time
@@ -11,6 +13,7 @@ from google.cloud import speech_v1p1beta1 as speech
 from google.cloud import texttospeech
 from google.oauth2 import service_account
 from ai import send_email, handle_task_creation, create_task, get_gmail_service, scrape_url, summarize_content
+from ai import *
 from docsprocessing import RAGProcessor # Import the RAGProcessor class from docsprocessing.py, RAGPprocessor it has functions to process_documentsm \_process_urls, \_process_pdf, ask_question, stream_answer, \_stram_web_search and the main function which was used to test the class, which could be modified to be used to be used
 from realtimeSearch import get_current_time, real_time_search
 from weather import get_weather
@@ -18,7 +21,9 @@ from sendEmail import * # Import the AIService class from sendEmail.py, AIServic
 from tasks import TaskRouter
 from todo import TodoManager
 from webScrapeAndProcess import web_search, scrape_url, summarize_content, scrape_webpages_with_serpapi
-
+from sendEmail import test_service as send_email
+from testWeather import test_weather_functionality as get_weather
+from tasks import TaskRouter
 
 
 load_dotenv()
@@ -179,35 +184,50 @@ def prompt_gpt(audio):
         print("Error: ", e)
         speak("I am sorry, I could not understand you, please try again")
 
-def callback(recognizer, audio):
-    global listening_for_wakeword
-    if listening_for_wakeword:
-        if listen_for_wake_word(audio):
-            print("Wake word detected, ready for your command.")
-            listening_for_wakeword = False
-    else:
-        prompt_gpt(audio)
+async def listen_and_route_tasks():
+    task_manager = TaskRouter()  # Initialize TaskRouter without arguments
 
-def start_listening():
+    def callback(recognizer, audio):
+        global listening_for_wakeword
+        if listening_for_wakeword:
+            if listen_for_wake_word(audio):
+                print("Wake word detected, ready for your command.")
+                listening_for_wakeword = False
+        else:
+            try:
+                prompt_audio_path = "prompt.wav"
+                with open(prompt_audio_path, "wb") as f:
+                    f.write(audio.get_wav_data())
+                prompt_text = wav_to_text(prompt_audio_path)
+
+                if not prompt_text.strip():
+                    speak("Empty prompt, please speak again")
+                    print("Empty prompt, please speak again")
+                    return
+
+                print("User: ", prompt_text)
+                result = asyncio.run(task_manager.analyze_prompt_and_route_task(prompt_text))
+                if result.get("status") == "error":
+                    speak(f"Error: {result['message']}")
+                else:
+                    speak(result.get("response", "Task completed successfully"))
+
+                if "thank you for your help" in prompt_text.lower():
+                    print("Conversation ended by user.")
+                    speak("You're welcome! Have a great day!")
+                    listening_for_wakeword = True
+                else:
+                    print(f"\nSay {wakeword} to wake me up")
+            except Exception as e:
+                print("Error: ", e)
+                speak("I am sorry, I could not understand you, please try again")
+
     with source as s:
         r.adjust_for_ambient_noise(s, duration=2)
     print("Say", wakeword, "to wake me up")
     r.listen_in_background(source, callback)
     while True:
-        time.sleep(0.1)
-
-
-
-#importing the modules from the other files, here, the bot will be able to use the functions from the other files, it will listen to the wakeword, if a command is given it would analyse the prompt, check for the right functions to call and assign that to the neccessaty function, the bot will be able to send emails, create tasks, summarize content, scrape webpages, get the weather, search in real time, process documents, ask questions, stream answers, stream web search, analyze prompts and route tasks, manage todos, and send emails, else, it would answer the default system message, and the user can end the conversation by saying "thank you for your help", the bot will respond with "You're welcome! Have a great day!" and the conversation will end, the bot will be able to respond to any question or statement that is asked of it or tasked to it, it will generate words in a user-friendly manner, it can also ask questions to the user to get more information, be playful and generate words of value prioritising logic and facts
-
-# creating a function that will listen and route the tasks, but for the email, it has ti use the test_email function from the sendEmail.py file, the function will be able to send an email, test the service, get the gmail service, and the main function which was used to test the class, which could be modified to be used, the for the input of the name of the sender, name of the reciever, and the email address of the reciever, the bout will request the user to manually type it, then the audio functionality will continue
-# the function will also be able to process the documents, process the urls, process the pdf, ask questions, stream answers, stream web search, and the main function which was used to test the class, which could be modified to be used
-
-def listen_and_route_tasks():
-    return None
-
-
-
+        await asyncio.sleep(0.1)
 
 if __name__ == "__main__":
-    start_listening()
+    asyncio.run(listen_and_route_tasks())

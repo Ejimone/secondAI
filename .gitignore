@@ -1,0 +1,4 @@
+env/
+my_virtual_environment/
+credentials.json
+.env
